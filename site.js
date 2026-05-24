@@ -83,6 +83,7 @@
 
   const skipTags = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT"]);
   const memoryStore = {};
+  const isStaticPreview = Boolean(window.__CHINAMIGO_STATIC__);
   const storage = {
     get(key) {
       try {
@@ -95,6 +96,12 @@
       memoryStore[key] = value;
       try {
         window.localStorage?.setItem(key, value);
+      } catch {}
+    },
+    remove(key) {
+      delete memoryStore[key];
+      try {
+        window.localStorage?.removeItem(key);
       } catch {}
     }
   };
@@ -287,7 +294,8 @@
       renderAuthMode(modal?.dataset.mode !== "register");
     });
     document.querySelector("[data-auth-logout]")?.addEventListener("click", async () => {
-      await fetch("/api/visitor/logout", { method: "POST" });
+      if (isStaticPreview) storage.remove("cm_static_user");
+      else await fetch("/api/visitor/logout", { method: "POST" });
       setAuthStatus(null);
       renderAuthMode(false);
     });
@@ -300,6 +308,18 @@
       status.textContent = registerMode ? "Creating account..." : "Logging in...";
       submit.disabled = true;
       try {
+        if (isStaticPreview) {
+          const formData = Object.fromEntries(new FormData(event.currentTarget));
+          const user = {
+            name: formData.name || "",
+            email: formData.email || ""
+          };
+          storage.set("cm_static_user", JSON.stringify(user));
+          setAuthStatus(user);
+          status.textContent = registerMode ? "Account saved for this preview." : "Logged in for this preview.";
+          renderAuthMode(false);
+          return;
+        }
         const response = await fetch(registerMode ? "/api/visitor/register" : "/api/visitor/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -319,6 +339,15 @@
   }
 
   async function loadVisitorSession() {
+    if (isStaticPreview) {
+      try {
+        const savedUser = JSON.parse(storage.get("cm_static_user") || "null");
+        setAuthStatus(savedUser);
+      } catch {
+        setAuthStatus(null);
+      }
+      return;
+    }
     try {
       const response = await fetch("/api/visitor/session");
       const result = await response.json();

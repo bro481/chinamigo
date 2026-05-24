@@ -4295,7 +4295,7 @@ details p {
   }
 
   .guide-article-card {
-    min-height: auto;
+    min-height: 360px;
   }
 
   .article-page {
